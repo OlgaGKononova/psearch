@@ -13,6 +13,8 @@ from multiprocessing import Process
 from src.scripts import gen_stereo_rdkit, gen_conf_rdkit, split
 from src.scripts import create_db
 
+from rdkit.Chem import SDMolSupplier, rdMolAlign, SDWriter
+
 
 def create_parser():
     parser = ArgumentParser(description='', formatter_class=ArgumentDefaultsHelpFormatter)
@@ -39,6 +41,7 @@ def common(filenames, nconf, energy, rms, rdkit_factory, ncpu, set_name):
 
     input_fname = filenames[0]
 
+    print("Generating stereocenters...")
     gen_stereo_rdkit.main_params(in_fname=input_fname,
                                  out_fname=filenames[2],
                                  tetrahedral=True,
@@ -48,6 +51,7 @@ def common(filenames, nconf, energy, rms, rdkit_factory, ncpu, set_name):
                                  ncpu=ncpu,
                                  verbose=True)
 
+    print("Generating conformations...")
     gen_conf_rdkit.main_params(in_fname=filenames[2],
                                out_fname=filenames[3],
                                id_field_name=None,
@@ -57,7 +61,21 @@ def common(filenames, nconf, energy, rms, rdkit_factory, ncpu, set_name):
                                ncpu=ncpu,
                                seed=-1,
                                verbose=True)
+    
+    rdk_mols = [m for m in SDMolSupplier(filenames[3], removeHs=False)]
+    ref_mol = rdk_mols[0]
+    for mol in rdk_mols[1:]:
+        if mol.GetNumAtoms() > ref_mol.GetNumAtoms():
+            ref_mol = mol
+            
+    for mol in rdk_mols:
+        o3d = rdMolAlign.GetO3A(mol, ref_mol)
+        o3d.Align()
+    writer = SDWriter(filenames[3])
+    for mol in rdk_mols:
+        writer.write(mol)
 
+    print("Creating DB...")
     create_db.main_params(dbout_fname=filenames[4],
                           smarts_features_fname=None, 
                           rdkit_factory=rdkit_factory,
