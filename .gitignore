@@ -1,1 +1,20 @@
+*__pycache__*
+*.pyc
+package.json
+.vscode
+tags
 .idea
+
+dist
+build
+
+# Coverage.py output
+.coverage
+htmlcov/
+
+# Python memory_profiler output
+mprofile_*.dat
+*.ipynb
+*.warn
+*.log
+test_*
