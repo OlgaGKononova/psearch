@@ -1,1 +1,21 @@
+__pycache__
+*.pyc
+package.json
+.vscode
+tags
 .idea
+/reinvent_scoring/configs/config.json
+
+dist
+build
+
+# Coverage.py output
+.coverage
+htmlcov/
+
+# Python memory_profiler output
+mprofile_*.dat
+*.ipynb
+*.warn
+*.log
+test_*
