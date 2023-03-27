@@ -19,8 +19,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from multiprocessing import Pool, cpu_count
 from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
-from psearch.scripts.read_input import read_input
-from psearch.database import DB
+from src.scripts.read_input import read_input
+from src.database import DB
 
 
 def prep_input(fname, nconf, nstereo, energy, rms, seed, bin_step, pharm_def):
@@ -101,8 +101,9 @@ def gen_data(mol, mol_name, nconf, nstereo, energy, rms, seed, bin_step, pharm_d
 
     isomers = gen_stereo(mol, nstereo)
     for i, mol in enumerate(isomers):
-        mol = gen_conf(mol, nconf, seed)
-        remove_confs(mol, energy, rms)
+        if nconf > 0:
+            mol = gen_conf(mol, nconf, seed)
+            remove_confs(mol, energy, rms)
 
         phs = utils.load_multi_conf_mol(mol, smarts_features=pharm_def, bin_step=bin_step)
         mol_dict[i] = mol
@@ -164,11 +165,11 @@ def create_db(in_fname, out_fname, nconf, nstereo, energy, rms, ncpu, bin_step, 
 
     finally:
         p.close()
-
+    
     if output_file_type != 'shelve':
         writer.close()
     # create new smi file if the input file has bad molecule structure(-s)
-    else:
+    elif not in_fname.lower().endswith(".sdf"):
         if len(open(in_fname).readlines()) - 1 > len(db.get_mol_names()):
             sys.stderr.write("\nWarning: Some molecules were omitted from the original .smi file. All the original "
                              "molecules will be saved in a backup file\n")
@@ -225,7 +226,7 @@ def entry_point():
                         help='print progress to STDERR.')
 
     args = parser.parse_args()
-    if (args.bin_step < 0) or (args.nstereo <= 0) or (args.nconf <= 0):
+    if (args.bin_step < 0) or (args.nstereo <= 0) or (args.nconf < 0):
         sys.exit("--bin_step, --nstereo, --nconf can not be less 0.\n"
                  "--stereo and/or --nconf can not be set to 0, otherwise, the database will not be created correctly.")
 

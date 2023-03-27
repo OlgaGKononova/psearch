@@ -9,7 +9,7 @@ import sys
 import time
 import argparse
 import pandas as pd
-from psearch.database import DB
+from src.database import DB
 from pmapper.pharmacophore import Pharmacophore
 
 

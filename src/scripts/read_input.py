@@ -22,25 +22,55 @@ def __read_pkl(fname):
                 yield pickle.load(f)
             except EOFError:
                 break
-
-
+            
+            
 def __read_sdf(fname, input_format, id_field_name=None, sanitize=True, removeHs=True):
     if input_format == 'sdf':
-        suppl = Chem.SDMolSupplier(fname, sanitize=sanitize, removeHs=removeHs)
+        suppl = Chem.SDMolSupplier(fname, sanitize=sanitize, removeHs=False)
     elif input_format == 'sdf.gz':
         suppl = Chem.ForwardSDMolSupplier(gzip.open(fname), sanitize=sanitize, removeHs=removeHs)
     else:
         return
-    for mol in suppl:
-        if mol is not None:
-            if id_field_name is not None:
-                mol_title = mol.GetProp(id_field_name)
-            else:
-                if mol.GetProp("_Name"):
-                    mol_title = mol.GetProp("_Name")
-                else:
-                    mol_title = Chem.MolToSmiles(mol, isomericSmiles=True)
-            yield PropertyMol(mol), mol_title
+    
+    mol = None
+    for itm in suppl:
+        if itm is None:
+            continue
+        if mol is None:
+            mol = itm
+            refVal = mol.GetProp("_Name")
+            continue
+        pVal = itm.GetProp("_Name")
+        if pVal == refVal:
+            mol.AddConformer(itm.GetConformer(),assignId=True)
+        else:
+            # we're done with the last molecule, so let's restart the next one
+            res = mol
+            mol = itm
+            refVal = pVal
+            yield PropertyMol(res), res.GetProp("_Name")
+    yield PropertyMol(mol), mol.GetProp("_Name")
+    
+    #yield PropertyMol(mol), refVal
+
+
+# def __read_sdf(fname, input_format, id_field_name=None, sanitize=True, removeHs=True):
+#     if input_format == 'sdf':
+#         suppl = Chem.SDMolSupplier(fname, sanitize=sanitize, removeHs=True)
+#     elif input_format == 'sdf.gz':
+#         suppl = Chem.ForwardSDMolSupplier(gzip.open(fname), sanitize=sanitize, removeHs=removeHs)
+#     else:
+#         return
+#     for mol in suppl:
+#         if mol is not None:
+#             if id_field_name is not None:
+#                 mol_title = mol.GetProp(id_field_name)
+#             else:
+#                 if mol.GetProp("_Name"):
+#                     mol_title = mol.GetProp("_Name")
+#                 else:
+#                     mol_title = Chem.MolToSmiles(mol, isomericSmiles=True)
+#             yield PropertyMol(mol), mol_title
 
 
 def __read_smiles(fname, sanitize=True):
@@ -111,6 +141,7 @@ def read_input(fname, input_format=None, id_field_name=None, sanitize=True, remo
     input_format - is a format of input data, cannot be None for STDIN
     id_field_name - name of the field containing molecule name, if None molecule title will be taken
     """
+    input_format = fname.split(".")[-1]
     if input_format is None:
         tmp = os.path.basename(fname).split('.')
         if tmp == 'gz':
@@ -126,8 +157,10 @@ def read_input(fname, input_format=None, id_field_name=None, sanitize=True, remo
         else:
             raise Exception("Input STDIN format '%s' is not supported. It can be only sdf, smi." % input_format)
     elif input_format in ("sdf", "sdf.gz"):
+        print("-->Reading  file")
         suppl = __read_sdf(os.path.abspath(fname), input_format, id_field_name, sanitize, removeHs)
     elif input_format in ('smi'):
+        print("-->Reading SMI file")
         suppl = __read_smiles(os.path.abspath(fname), sanitize)
     elif input_format == 'pkl':
         suppl = __read_pkl(os.path.abspath(fname))

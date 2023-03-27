@@ -8,7 +8,7 @@ __author__ = 'Alina Kutlushina'
 
 import os
 from rdkit import Chem
-from psearch.database import DB
+from src.database import DB
 import argparse
 
 

@@ -14,7 +14,7 @@ from multiprocessing import Pool
 from functools import partial
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from psearch.database import DB
+from src.database import DB
 
 
 path_query = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'pharmacophores', 'chembl_models')
