@@ -77,12 +77,16 @@ def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clus
         
         # get_centroids() returns tuple of tuples with mol names and their SMILES
         centroids_inact = get_centroids(clusters_inactive, activity_df, clust_size)
+        print("centroids_inact:", centroids_inact)
 
         for i, act_ts, inact_ts in diff_binding_mode(
                                         clusters, activity_df,
                                         activity_df[activity_df['activity'] == 1].index.tolist(),
                                         centroids_inact, max_num_acts):
+            print("->", act_ts)
+            print("->", inact_ts)
             training_set.append((f"t{i}", act_ts+inact_ts))
+            
             
     clust_stat_data = get_cluster_stat(clusters, activity_df[activity_df['activity'] == 1].index.tolist())
 
