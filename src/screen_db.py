@@ -7,54 +7,17 @@
 import os
 import sys
 import time
-import argparse
 from collections import namedtuple
 from pmapper.pharmacophore import Pharmacophore
 from multiprocessing import Pool
 from functools import partial
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from src.database import DB
 
 
 path_query = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'pharmacophores', 'chembl_models')
-Model = namedtuple('Model', ['name', 'fp', 'pharmacophore', 'output_filename'])
+Model = namedtuple('Model', ['name', 'fp', 'pharmacophore'])
 Conformer = namedtuple('Conformer', ['stereo_id', 'conf_id', 'fp', 'pharmacophore'])
-
-
-def create_parser():
-    parser = argparse.ArgumentParser(description='Screen DB with compounds against pharmacophore queries.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-d', '--dbname', metavar='FILENAME.dat', type=str, required=True,
-                        help='input database with generated conformers and pharmacophores.')
-    parser.add_argument('-q', '--query', metavar='FILENAME(S) or DIRNAME(S)', type=str, nargs='+', default=None,
-                        help='pharmacophore model(s) or directory path(s). If a directory is specified all '
-                             'pma- and xyz-files will be used for screening as pharmacophore models.'
-                             'The ligand-based pharmacophore models, that created from the ChEMBL database '
-                             'using  the psearch tool, are used by default.')
-    parser.add_argument('-o', '--output', metavar='FILENAME or DIRNAME', required=True, type=str,
-                        help='a text (.txt) file which will store names of compounds which fit the model. In the case '
-                             'multiple query models or directories were supplied as input'
-                             'this should be the path to a directory where output files will be created to store '
-                             'screening results. If multiple directories were specified as input the corresponding '
-                             'directories will be created in the output dir. Names of created  directories will be '
-                             'taken from the bottom level of input directories, e.g. path/to/model/ will be stored in '
-                             'output_dir/model. Beware, existed output files/directories will be overwritten.')
-    parser.add_argument('-f', '--min_features', metavar='INTEGER', default=None, type=int,
-                        help='minimum number of features with distinct coordinates in models. Models having less '
-                             'number of features will be skipped. Default: all models will be screened.')
-    parser.add_argument('-z', '--output_sdf', action='store_true', default=False,
-                        help='specify if sdf output with matched conformers is required. These files will be created '
-                             'in the place as text files.')
-    parser.add_argument('--conf', action='store_true', default=False,
-                        help='return all conformers matches as separate hits in a hit list. Required to calculate the '
-                             'score by the conformer coverage approach (CCA).')
-    parser.add_argument('-c', '--ncpu', metavar='INTEGER', default=1, type=int,
-                        help='number of cores to use. Default: 1.')
-    parser.add_argument('-v', '--verbose', action='store_true', default=False,
-                        help='print progress to STDERR.')
-    return parser
-
 
 def load_confs(mol_name, db):
     bin_step = db.get_bin_step()
@@ -72,47 +35,45 @@ def load_confs(mol_name, db):
     return res
 
 
-def read_models(queries, output, bin_step, min_features):
+def read_models(queries, bin_step, min_features):
+    """_summary_
 
-    if all(os.path.isdir(item) for item in queries):
-        input_fnames = []
-        output_fnames = []
-        for dname in queries:
-            dname = os.path.abspath(dname)
-            for f in os.listdir(dname):
-                if os.path.isfile(os.path.join(dname, f)) and (f.endswith('.pma') or f.endswith('.xyz')):
-                    input_fnames.append(os.path.join(dname, f))
-                    output_fnames.append(os.path.join(output, os.path.basename(dname), os.path.splitext(os.path.basename(f))[0] + '.txt'))
-    elif all(os.path.isfile(item) for item in queries):
-        input_fnames = tuple(os.path.abspath(f) for f in queries if f.endswith('.pma') or f.endswith('.xyz'))
-        output_fnames = tuple(os.path.join(output, os.path.splitext(os.path.basename(f))[0] + '.txt') for f in input_fnames)
-    else:
-        raise ValueError('Input queries should be all either files or directories not a mix.')
+    Args:
+        queries (_type_): List of {'bin_size': 1,
+                                    'coords': [('a', (-2.68, 1.25, 5.07)),
+                                                ('a', (3.58, -4.65, -1.1)),
+                                                ('H', (-2.68, 1.25, 5.07)),
+                                                ('H', (3.58, -4.65, -1.1))],
+                                    'name': 'DB_NAME.t0_f5_p0.xyz'}
+        output (_type_): _description_
+        bin_step (_type_): _description_
+        min_features (_type_): _description_
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        _type_: _description_
+    """
 
     res = []
-    for input_fname, output_fname in zip(input_fnames, output_fnames):
+    for q_data in queries:
         p = Pharmacophore()
-        if input_fname.endswith('.pma'):
-            p.load_from_pma(input_fname)
-        elif input_fname.endswith('.xyz'):
-            p.load_from_xyz(input_fname)
+        p.load_from_feature_coords(tuple(q_data["coords"]))
         # skip models with less number of features with distinct coordinates that given
         if min_features is not None and len(set(xyz for label, xyz in p.get_feature_coords())) < min_features:
             continue
         p.update(bin_step=bin_step)
         fp = p.get_fp()
-        res.append(Model(input_fname, fp, p, output_fname))
+        res.append(Model(q_data["name"], fp, p))
 
     return res
 
 
-def screen(mol_name, db, models, output_sdf, match_first_conf):
+def screen(mol_name, db, models, match_first_conf, get_transform_matrix=True, get_rms=True):
 
     def compare_fp(query_fp, fp):
         return (query_fp & fp) == query_fp
-
-    get_transform_matrix = output_sdf
-    get_rms = output_sdf
 
     confs = load_confs(mol_name, db)
 
@@ -124,9 +85,9 @@ def screen(mol_name, db, models, output_sdf, match_first_conf):
                                                    get_transform_matrix=get_transform_matrix, get_rms=get_rms)
                 if res:
                     if get_transform_matrix:
-                        output.append((mol_name, conf.stereo_id, conf.conf_id, model.output_filename, res[1], res[2]))
+                        output.append((model.name, mol_name, conf.stereo_id, conf.conf_id, res[1], res[2]))
                     else:
-                        output.append((mol_name, conf.stereo_id, conf.conf_id, model.output_filename))
+                        output.append((model.name, mol_name, conf.stereo_id, conf.conf_id))
                     if match_first_conf:
                         break
     return output
@@ -152,69 +113,42 @@ def save_results(results, output_sdf, db):
                 w.close()
 
 
-def screen_db(db_fname, queries, output, output_sdf, match_first_conf, min_features, ncpu, verbose):
+def screen_db(db, queries, match_first_conf, min_features, ncpu, verbose):
 
     start_time = time.time()
 
-    if output.endswith('.txt') or output.endswith('.sdf'):
-        if not os.path.exists(os.path.dirname(output)):
-            os.makedirs(os.path.dirname(output), exist_ok=True)
-    else:
-        if not os.path.exists(output):
-            os.makedirs(output, exist_ok=True)
-
-    if output.endswith('.sdf'):  # forcibly set output format
-        output_sdf = True
-
-    db = DB(db_fname, flag='r')
     bin_step = db.get_bin_step()
-    models = read_models(queries, output, bin_step, min_features)   # return list of Model namedtuples
-    for model in models:
-        if os.path.isfile(model.output_filename):
-            os.remove(model.output_filename)
-        if output_sdf and os.path.isfile(os.path.splitext(model.output_filename)[0] + '.sdf'):
-            os.remove(os.path.splitext(model.output_filename)[0] + '.sdf')
+    models = read_models(queries, bin_step, min_features)   # return list of Model namedtuples
 
     comp_names = db.get_mol_names()
+    
+    screen_output = {}
 
     if ncpu == 1:
         for i, comp_name in enumerate(comp_names, 1):
-            res = screen(mol_name=comp_name, db=db, models=models, output_sdf=output_sdf, match_first_conf=match_first_conf)
+            res = screen(mol_name=comp_name, db=db, models=models, match_first_conf=match_first_conf)
             if res:
-                save_results(res, output_sdf, db)
+                for model_name, mol_name, a, b, m, r in res:
+                    if model_name not in screen_output:
+                        screen_output[model_name] = []
+                    screen_output[model_name].append((mol_name, a, b))
             if verbose and i % 10 == 0:
                 current_time = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
                 sys.stderr.write('\r{} molecules passed/conformers {}'.format(i, current_time))
                 sys.stderr.flush()
     else:
         p = Pool(ncpu)
-        for i, res in enumerate(p.imap_unordered(partial(screen, db=db, models=models, output_sdf=output_sdf,
-                                            match_first_conf=match_first_conf), comp_names, chunksize=10), 1):
+        for i, res in enumerate(p.imap_unordered(partial(screen, db=db, models=models, match_first_conf=match_first_conf), comp_names, chunksize=10), 1):
+            
             if res:
-                save_results(res, output_sdf, db)
+                for model_name, mol_name, a, b, m, r in res:
+                    if model_name not in screen_output:
+                        screen_output[model_name] = []
+                    screen_output[model_name].append((mol_name, a, b))
             if verbose and i % 10 == 0:
                 current_time = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
                 sys.stderr.write('\r{} molecules screened {}'.format(i, current_time))
                 sys.stderr.flush()
         p.close()
+    return screen_output
 
-    # remove output dir if it is empty
-    # if os.path.exists(output) and os.path.isdir(output) and not os.listdir(output):
-    #     os.rmdir(output)
-
-
-def entry_point():
-    parser = create_parser()
-    args = parser.parse_args()
-    screen_db(db_fname=args.dbname,
-              queries=[os.path.join(path_query, q) for q in os.listdir(path_query)] if not args.query else args.query,
-              output=args.output,
-              output_sdf=args.output_sdf,
-              match_first_conf=not args.conf,
-              min_features=args.min_features,
-              ncpu=args.ncpu,
-              verbose=args.verbose)
-
-
-if __name__ == '__main__':
-    entry_point()
