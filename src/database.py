@@ -11,14 +11,20 @@ import shelve
 
 
 class DB:
-    def __init__(self, fname, flag='c'):
-        self.__db = shelve.open(os.path.splitext(fname)[0], flag=flag, protocol=4)
+    def __init__(self, filename=None, flag="n", input_data={}):
+        if filename:
+            self.__db = shelve.open(os.path.splitext(filename)[0], flag=flag, protocol=4)
+        else:
+            self.__db = shelve.Shelf(input_data)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.__db.close()
+        
+    def read(self, fname, flag='c'):
+        self.__db = shelve.open(os.path.splitext(fname)[0], flag=flag, protocol=4)
 
     def write_bin_step(self, bin_step):
         self.__db['_bin_step'] = bin_step
