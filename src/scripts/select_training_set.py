@@ -54,13 +54,15 @@ def diff_binding_mode(cs, df, index_acts, inact_centroids, min_num):
         if len(set(c).intersection(index_acts)) >= min_num:
             dfc = df.iloc[list(c)]
             ts_mol_name_act = dfc[dfc['activity'] == 1][:5].values.tolist()
-            ts_mol_name_inact = np.append(dfc[dfc['activity'] == 0][:5].values, inact_centroids, axis=0).tolist()
+            ts_mol_name_inact = dfc[dfc['activity'] == 0][:5].values.tolist()
+            ts_mol_name_inact.extend(inact_centroids)
+            #np.append(dfc[dfc['activity'] == 0][:5].values, inact_centroids, axis=0).tolist()
             #ts_mol_name_inact = [list(e) for e in set(tuple(element) for element in ts_mol_name_inact)]
             yield i, ts_mol_name_act, ts_mol_name_inact
 
 
 def get_centroids(cs, df, num):
-    return tuple(list(df[df.index == x[0]].values[0]) for x in cs if len(x) >= num)
+    return [df[df.index == x[0]].values[0].tolist() for x in cs if len(x) >= num]
 
 
 def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clust_size=5, max_num_acts=5):
@@ -77,14 +79,11 @@ def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clus
         
         # get_centroids() returns tuple of tuples with mol names and their SMILES
         centroids_inact = get_centroids(clusters_inactive, activity_df, clust_size)
-        print("centroids_inact:", centroids_inact)
 
         for i, act_ts, inact_ts in diff_binding_mode(
                                         clusters, activity_df,
                                         activity_df[activity_df['activity'] == 1].index.tolist(),
                                         centroids_inact, max_num_acts):
-            print("->", act_ts)
-            print("->", inact_ts)
             training_set.append((f"t{i}", act_ts+inact_ts))
             
             
