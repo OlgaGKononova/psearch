@@ -9,20 +9,10 @@ import sys
 import time
 import argparse
 import pandas as pd
-from src.database import DB
 from pmapper.pharmacophore import Pharmacophore
 
 
-def _keep_best_models(df, df_sub, save_files, nfeatures):
-    df_sub = df_sub[df_sub['hash'].isin(set(df['hash']))].reset_index(drop=True)
-    if save_files:
-        df.to_csv(os.path.join(save_files[0], f'internal_statistics-{save_files[1]}-f{nfeatures}.txt'), index=None, sep='\t')
-        df_sub.to_csv(os.path.join(save_files[0], f'pharmacophore_models-{save_files[1]}-f{nfeatures}.txt'), index=None, sep='\t')
-    return df_sub
-
-
-def _gen_quadruplets(db, pp_train_set, lower, tol, bin_step):
-    train_set_list = [name.strip().split() for name in open(pp_train_set).readlines()]
+def _gen_quadruplets(db, train_set_list, lower, tol, bin_step):
     for _, mol_name, activity in train_set_list:
         try:
             dict_coords = db.get_pharm(mol_name)
@@ -100,62 +90,75 @@ def calc_internal_stat(df, positives, clust_strategy, designating):
     return df
 
 
-def save_models_xyz(db, db_name, df_sub, path_pma, bin_step, cluster_id, num_ids):
+def generate_output(db, model_id, df_sub, bin_step, cluster_id, num_ids):
     data = df_sub.drop_duplicates(subset=['hash']).values
+    ndigits=2
+    output_data = []
     for num, (_, hash, count, mol_name, isomer_id, conf_id, feature_ids) in enumerate(data):
         pharm = Pharmacophore(bin_step=bin_step, cached=True)
         pharm.load_from_feature_coords(db.get_pharm(mol_name)[isomer_id][conf_id])
-        pharm.save_to_xyz(os.path.join(path_pma, f"{db_name}.{cluster_id}_f{num_ids}_p{num}.xyz"),
-                          tuple(map(int, feature_ids.split(','))))
-    return len(data)
+        output_data.append(dict(name=f"{model_id}.{cluster_id}_f{num_ids}_p{num}",
+                           bin_size=pharm.get_bin_step(),
+                           coords=[(i, (round(x, ndigits), round(y, ndigits), round(z, ndigits))) 
+                                   for i, (x, y, z) in pharm.get_feature_coords(tuple(map(int, feature_ids.split(','))))]))
+    return len(data), output_data
 
 
-def gen_pharm_models(in_db, out_pma, trainset, tolerance, bin_step, current_nfeatures, upper, nfeatures, save_statistics):
+def gen_pharm_models(db, training_set, tolerance, bin_step, current_nfeatures, upper, nfeatures):
     time_start = time.time()
-    db_name = os.path.splitext(os.path.basename(in_db))[0]
-    os.makedirs(out_pma, exist_ok=True)
-    cluster_id = os.path.splitext(os.path.basename(trainset))[0]
-    designating = ['1', '0']  # molecular activity
+    model_id = "DB_NAME" #os.path.splitext(os.path.basename(in_db))[0]
+    
+    designating = [1, 0]  # molecular activity
+    cluster_id, training_batch = training_set
     clust_strategy = 1 if cluster_id == 'centroids' else 2
-    positives = len([line for line in open(trainset).readlines() if line.strip().split()[2] == designating[0]])
-    db = DB(in_db, flag='r')
-    df_sub = gen_models(_gen_quadruplets(db, trainset, current_nfeatures, tolerance, bin_step))
-    df = calc_internal_stat(df_sub[['activity', 'hash', 'count']].drop_duplicates(subset=['activity', 'hash']),
-                            positives, clust_strategy, designating)
-    if df.empty:
+    positives = len([d for d in training_batch if d[-1] == designating[0]])
+    
+    all_data = []
+
+    model_results = gen_models(_gen_quadruplets(db, training_batch, current_nfeatures, tolerance, bin_step))
+    internal_stat_df = calc_internal_stat(model_results[['activity', 'hash', 'count']].drop_duplicates(subset=['activity', 'hash']), 
+                                          positives, 
+                                          clust_strategy, 
+                                          designating)
+    
+    if internal_stat_df.empty:
         sys.stderr.write(f'train set {cluster_id}: no {current_nfeatures}-points pharmacophore models\n')
         sys.exit(0)
 
-    if save_statistics:
-        path_files = os.path.join(out_pma, 'intermediate_data')
-        os.makedirs(path_files, exist_ok=True)
-        save_statistics = [path_files, cluster_id]
-
-    df_sub = _keep_best_models(df, df_sub, save_statistics, current_nfeatures)
+    model_results = model_results[model_results['hash'].isin(set(internal_stat_df['hash']))].reset_index(drop=True)
+    
     if nfeatures is not None:
         if current_nfeatures >= nfeatures:
-            _ = save_models_xyz(db, db_name, df_sub[df_sub['activity'] == designating[0]],
-                                out_pma, bin_step, cluster_id, current_nfeatures)
+            _, out = generate_output(db, model_id, 
+                                     model_results[model_results['activity'] == designating[0]],
+                                     bin_step, cluster_id, current_nfeatures)
+            all_data.extend(out)
 
     while True:
         if current_nfeatures == upper:
             break
         current_nfeatures += 1
-        df_sub_2 = gen_models(_plus_one_feature(db, df_sub, bin_step))
-        df = calc_internal_stat(df_sub_2[['activity', 'hash', 'count']].drop_duplicates(subset=['activity', 'hash']),
-                            positives, clust_strategy, designating)
-        if df.empty:
+        model_results_i = gen_models(_plus_one_feature(db, model_results, bin_step))
+        internal_stat_df = calc_internal_stat(model_results_i[['activity', 'hash', 'count']].drop_duplicates(subset=['activity', 'hash']),
+                                              positives, 
+                                              clust_strategy, 
+                                              designating)
+        if internal_stat_df.empty:
             break
 
-        df_sub = _keep_best_models(df, df_sub_2, save_statistics, current_nfeatures)
+        #model_results = _keep_best_models(internal_stat_df, model_results_i, save_statistics, current_nfeatures)
+        model_results = model_results_i[model_results_i['hash'].isin(set(internal_stat_df['hash']))].reset_index(drop=True)
         if nfeatures is not None:
             if current_nfeatures >= nfeatures:
-                _ = save_models_xyz(db, db_name, df_sub[df_sub['activity'] == designating[0]],
-                                    out_pma, bin_step, cluster_id, current_nfeatures)
+                _, out = generate_output(db, model_id, model_results[model_results['activity'] == designating[0]],
+                                         bin_step, cluster_id, current_nfeatures)
+                all_data.extend(out)
 
-    num_models = save_models_xyz(db, db_name, df_sub[df_sub['activity'] == designating[0]], out_pma, bin_step, cluster_id, current_nfeatures)
+    num_models, out = generate_output(db, model_id, model_results[model_results['activity'] == designating[0]], bin_step, cluster_id, current_nfeatures)
+    all_data.extend(out)
     sys.stderr.write(f'train set {cluster_id}: {num_models} models ({round(time.time()-time_start, 3)}s)\n')
     sys.stderr.flush()
+    return all_data
 
 
 def create_parser():
