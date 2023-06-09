@@ -27,11 +27,11 @@ def creating_pharmacophore(db, training_set, upper, lower, save_model_complexity
                      nfeatures=save_model_complexity)
 
 
-def psearch_generator(db, train_set, tolerance, lower, save_model_complexity, upper, bin_step, ncpu):
+def psearch_generator(db, training_set, tolerance, lower, save_model_complexity, upper, bin_step, ncpu):
         
     p = Pool(ncpu)
     output = []
-    for data in p.imap(creating_pharmacophore_mp, get_items(db=db, train_set=train_set, 
+    for data in p.imap(creating_pharmacophore_mp, get_items(db=db, train_set=training_set, 
                                                          upper=upper, lower=lower,
                                                          save_model_complexity=save_model_complexity,
                                                          bin_step=bin_step, tolerance=tolerance)):

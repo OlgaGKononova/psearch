@@ -45,13 +45,13 @@ def generate_pharm_features(isomers, mol_name, bin_step, pharm_def=None):
     return mol_name, mol_dict, ph_dict, fp_dict
 
 
-def create_conformations_db(rdk_molecules, ncpu, bin_step=1, db_filename=None, pharm_def=None, verbose=True):
+def create_conformations_db(rdk_molecules, ncpu, bin_step=1, db_filename=None, flag="n", pharm_def=None, verbose=True):
     if verbose:
         sys.stderr.write('Database creation started\n')
 
     start_time = time.time()
 
-    db = DB(filename=db_filename)
+    db = DB(filename=db_filename, flag=flag)
     db.write_bin_step(bin_step)
 
     nprocess = min(cpu_count(), max(ncpu, 1))
