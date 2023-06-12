@@ -106,7 +106,7 @@ def generate_output(db, model_id, df_sub, bin_step, cluster_id, num_ids):
 
 def gen_pharm_models(db, training_set, tolerance, bin_step, current_nfeatures, upper, nfeatures):
     time_start = time.time()
-    model_id = "DB_NAME" #os.path.splitext(os.path.basename(in_db))[0]
+    model_id = db.name #os.path.splitext(os.path.basename(in_db))[0]
     
     designating = [1, 0]  # molecular activity
     cluster_id, training_batch = training_set
