@@ -61,8 +61,8 @@ def diff_binding_mode(cs, df, index_acts, inact_centroids, min_num):
             yield i, ts_mol_name_act, ts_mol_name_inact
 
 
-def get_centroids(cs, df, num):
-    return [df[df.index == x[0]].values[0].tolist() for x in cs if len(x) >= num]
+def get_centroids(cs, df, num, start_index=0):
+    return [df[df.index == x[0]+start_index].values[0].tolist() for x in cs if len(x) >= num]
 
 
 def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clust_size=5, max_num_acts=5):
@@ -75,10 +75,11 @@ def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clus
     training_set = []
     if 2 in training_set_mode:
         clusters = gen_cluster_subset_butina(fp, threshold)
-        clusters_inactive = gen_cluster_subset_butina(fp[min(activity_df[activity_df['activity'] == 0].index):], threshold)
+        start_index = min(activity_df[activity_df['activity'] == 0].index)
+        clusters_inactive = gen_cluster_subset_butina(fp[start_index:], threshold)
         
         # get_centroids() returns tuple of tuples with mol names and their SMILES
-        centroids_inact = get_centroids(clusters_inactive, activity_df, clust_size)
+        centroids_inact = get_centroids(clusters_inactive, activity_df, clust_size, start_index)
 
         for i, act_ts, inact_ts in diff_binding_mode(
                                         clusters, activity_df,
