@@ -8,7 +8,7 @@ import time
 from pmapper import utils
 from multiprocessing import Pool, cpu_count
 
-from database import DB
+from .database import DB
 
 
 def molecules_iterator(rdk_molecules, bin_step, pharm_def):

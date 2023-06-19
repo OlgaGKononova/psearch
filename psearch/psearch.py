@@ -5,7 +5,7 @@
 # ==============================================================================
 
 from multiprocessing import Pool
-from scripts.gen_pharm_models import gen_pharm_models
+from .scripts.gen_pharm_models import gen_pharm_models
 
 
 def creating_pharmacophore_mp(items):
