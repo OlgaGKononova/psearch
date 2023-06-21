@@ -9,25 +9,25 @@ from rdkit.Chem.Pharm2D.SigFactory import SigFactory
 from pmapper.customize import load_factory
 
 
-# def generate_fingerprints(smiles_list, fcfp4):
-#     if fcfp4:
-#         fp = [(AllChem.GetMorganFingerprint(Chem.MolFromSmiles(smiles), 2, useFeatures=True)) for smiles in smiles_list]
-#     else:
-#         featfactory = load_factory()
-#         sigfactory = SigFactory(featfactory, minPointCount=2, maxPointCount=3, trianglePruneBins=False)
-#         sigfactory.SetBins([(0, 2), (2, 5), (5, 8)])
-#         sigfactory.Init()
-#         fp = [(Generate.Gen2DFingerprint(Chem.MolFromSmiles(smiles), sigfactory)) for smiles in smiles_list]
-#     return fp
-
-def generate_fingerprints(smiles, fcfp4):
+def generate_fingerprints(smiles_list, fcfp4):
     if fcfp4:
-        return (AllChem.GetMorganFingerprint(Chem.MolFromSmiles(smiles), 2, useFeatures=True))
-    featfactory = load_factory()
-    sigfactory = SigFactory(featfactory, minPointCount=2, maxPointCount=3, trianglePruneBins=False)
-    sigfactory.SetBins([(0, 2), (2, 5), (5, 8)])
-    sigfactory.Init()
-    return (Generate.Gen2DFingerprint(Chem.MolFromSmiles(smiles), sigfactory))
+        fp = [(AllChem.GetMorganFingerprint(Chem.MolFromSmiles(smiles), 2, useFeatures=True)) for smiles in smiles_list]
+    else:
+        featfactory = load_factory()
+        sigfactory = SigFactory(featfactory, minPointCount=2, maxPointCount=3, trianglePruneBins=False)
+        sigfactory.SetBins([(0, 2), (2, 5), (5, 8)])
+        sigfactory.Init()
+        fp = [(Generate.Gen2DFingerprint(Chem.MolFromSmiles(smiles), sigfactory)) for smiles in smiles_list]
+    return fp
+
+# def generate_fingerprints(smiles, fcfp4):
+#     if fcfp4:
+#         return (AllChem.GetMorganFingerprint(Chem.MolFromSmiles(smiles), 2, useFeatures=True))
+#     featfactory = load_factory()
+#     sigfactory = SigFactory(featfactory, minPointCount=2, maxPointCount=3, trianglePruneBins=False)
+#     sigfactory.SetBins([(0, 2), (2, 5), (5, 8)])
+#     sigfactory.Init()
+#     return (Generate.Gen2DFingerprint(Chem.MolFromSmiles(smiles), sigfactory))
     
 
 def gen_cluster_subset_butina(fps, cutoff):
@@ -35,7 +35,7 @@ def gen_cluster_subset_butina(fps, cutoff):
     for i in range(len(fps)-1):
         sims = DataStructs.BulkTanimotoSimilarity(fps[i], fps[i+1:])
         dists.extend([1 - x for x in sims])
-    clusters = Butina.ClusterData(dists, len(fps), cutoff, isDistData=True)
+    clusters = [list(c) for c in Butina.ClusterData(dists, len(fps), cutoff, isDistData=True)]
     return clusters  # returns tuple of tuples with sequential numbers of compounds in each cluster
 
 
@@ -95,8 +95,10 @@ def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clus
     if (1 not in training_set_mode) and (2 not in training_set_mode):
         raise RuntimeError('Wrong value of parameter mode_train_set. That should be 1 and/or 2.')
 
-    #fp = generate_fingerprints(activity_df.smiles.to_list(), fcfp4)
-    activity_df["fingerprints"] = activity_df.smiles.apply(generate_fingerprints, args=[fcfp4])
+    fp = generate_fingerprints(activity_df.smiles.to_list(), fcfp4)
+    activity_df["fingerprints"] = [p.ToBitString() for p in fp]
+    #activity_df["fingerprints"] = activity_df.smiles.apply(generate_fingerprints, args=[fcfp4])
+    activity_df.to_csv("./fingerprints.csv")
     
     columns = ["smiles", "mol_name", "activity"]
     
