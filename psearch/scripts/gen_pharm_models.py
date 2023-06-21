@@ -92,15 +92,18 @@ def calc_internal_stat(df, positives, clust_strategy, designating):
 
 def generate_output(db, model_id, df_sub, bin_step, cluster_id, num_ids):
     data = df_sub.drop_duplicates(subset=['hash']).values
-    ndigits=2
+    #ndigits=2
     output_data = []
     for num, (_, hash, count, mol_name, isomer_id, conf_id, feature_ids) in enumerate(data):
         pharm = Pharmacophore(bin_step=bin_step, cached=True)
         pharm.load_from_feature_coords(db.get_pharm(mol_name)[isomer_id][conf_id])
         output_data.append(dict(name=f"{model_id}.{cluster_id}_f{num_ids}_p{num}",
-                           bin_size=pharm.get_bin_step(),
-                           coords=[(i, (round(x, ndigits), round(y, ndigits), round(z, ndigits))) 
-                                   for i, (x, y, z) in pharm.get_feature_coords(tuple(map(int, feature_ids.split(','))))]))
+                                bin_size=pharm.get_bin_step(),
+                                #(i, (round(x, ndigits), round(y, ndigits), round(z, ndigits)))
+                                coords=[(i, (x, y, z)) 
+                                        for i, (x, y, z) in pharm.get_feature_coords(tuple(map(int, feature_ids.split(','))))]
+                                )
+                           )
     return len(data), output_data
 
 
