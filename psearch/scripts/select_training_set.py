@@ -113,6 +113,13 @@ def generate_training_set(activity_df, training_set_mode, fcfp4, threshold, clus
     centroids_active = get_centroids(clusters_active, activity_df[columns], clust_size)
     centroids_inactive = get_centroids(clusters_inactive_rescaled, activity_df[columns], clust_size)
     
+    print(activity_df)
+    
+    print("All clusters:", clusters_all)
+    print("Active clusters:", clusters_active)
+    print("Inactive clusters", clusters_inactive)
+    print("Inactive centroids", centroids_inactive)
+    
     training_set = []
     if 2 in training_set_mode:
         for i, actives, inactives in select_data(activity_df[columns], clusters_all, min_num_acts):
