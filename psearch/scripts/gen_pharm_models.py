@@ -156,6 +156,8 @@ def gen_pharm_models(db, training_set, tolerance, bin_step, current_nfeatures, u
                 _, out = generate_output(db, model_id, model_results[model_results['activity'] == designating[0]],
                                          bin_step, cluster_id, current_nfeatures)
                 all_data.extend(out)
+        if time.time()-time_start > 360.0:
+            break
 
     num_models, out = generate_output(db, model_id, model_results[model_results['activity'] == designating[0]], bin_step, cluster_id, current_nfeatures)
     all_data.extend(out)

@@ -21,7 +21,8 @@ def max_edge(model):
     return edge
 
 
-def get_external_stat(df_mols, trainset, pharm_model, pp_screen, model_id):
+#def get_external_stat(df_mols, trainset, pharm_model, pp_screen, model_id):
+def get_external_stat(df_mols, pharm_model, pp_screen, model_id):
     target_id = "input_smiles" #os.path.splitext(os.path.basename(path_mols))[0]
     medge = max_edge(pharm_model)
     num_uniq_features = set()
@@ -32,19 +33,21 @@ def get_external_stat(df_mols, trainset, pharm_model, pp_screen, model_id):
         num_uniq_features.add(tuple(map(float, coords)))
     num_uniq_features = len(num_uniq_features)
 
-    ts_act_mol = []
-    ts_inact_mol = []
-    for smiles, name, activity in trainset:
-        if activity == 1:
-            ts_act_mol.append(name)
-        else:
-            ts_inact_mol.append(name)
+    # ts_act_mol = []
+    # ts_inact_mol = []
+    # for smiles, name, activity in trainset:
+    #     if activity == 1:
+    #         ts_act_mol.append(name)
+    #     else:
+    #         ts_inact_mol.append(name)
 
     if not Chem.MolFromSmiles(df_mols.at[0, 'smiles']):
         print("dropped:", df_mols.at[0, 'smiles'])
         df_mols.drop(index=0, inplace=True)
-    df_act = df_mols[(df_mols['activity'] == 1) & (~df_mols['mol_name'].isin(ts_act_mol))]
-    df_inact = df_mols[(df_mols['activity'] == 0) & (~df_mols['mol_name'].isin(ts_inact_mol))]
+    # df_act = df_mols[(df_mols['activity'] == 1) & (~df_mols['mol_name'].isin(ts_act_mol))]
+    # df_inact = df_mols[(df_mols['activity'] == 0) & (~df_mols['mol_name'].isin(ts_inact_mol))]
+    df_act = df_mols[(df_mols['activity'] == 1)]
+    df_inact = df_mols[(df_mols['activity'] == 0)]
     
     res_screen = [name for name, _, _ in pp_screen]
     act_screen = set(res_screen) & set(df_act['mol_name'])
@@ -85,15 +88,15 @@ def get_external_stat(df_mols, trainset, pharm_model, pp_screen, model_id):
     return target_id, model_id, tp, fp, p, n, precision, recall, fpr, f1, f2, f05, ba, ef, num_uniq_features, medge, labels
 
 
-def calc_stat(activity_df, training_set, pharm_data, screen_out):
-    start_time = time.time()
+#def calc_stat(activity_df, training_set, pharm_data, screen_out):
+def calc_stat(activity_df, pharm_data, screen_out):
+    #start_time = time.time()
     df_result = pd.DataFrame(columns=['target_id', 'model_id', 'TP', 'FP', 'P', 'N', 'precision', 'recall', 'FPR',
                                       'F1', 'F2', 'F05', 'BA', 'EF', 'uniq_features', 'max_dist', 'features'])
     for enum, fmodel in enumerate(pharm_data):
         target_id, model_id = fmodel["name"].split(".")
-        set_id = model_id.split("_")[0]
+        #set_id = model_id.split("_")[0]
         results = get_external_stat(df_mols=activity_df,
-                                    trainset=training_set[set_id],
                                     pharm_model=fmodel, 
                                     pp_screen=screen_out[fmodel["name"]],
                                     model_id=model_id)

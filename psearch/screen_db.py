@@ -134,7 +134,7 @@ def screen_db(db, queries, match_first_conf, min_features, ncpu, verbose):
                     screen_output[model_name].append((mol_name, a, b))
             if verbose and i % 10 == 0:
                 current_time = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-                sys.stderr.write('\r{} molecules passed/conformers {}'.format(i, current_time))
+                sys.stderr.write('\r{} molecules passed/conformers {}\n'.format(i, current_time))
                 sys.stderr.flush()
     else:
         p = Pool(ncpu)
@@ -147,7 +147,7 @@ def screen_db(db, queries, match_first_conf, min_features, ncpu, verbose):
                     screen_output[model_name].append((mol_name, a, b))
             if verbose and i % 10 == 0:
                 current_time = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-                sys.stderr.write('\r{} molecules screened {}'.format(i, current_time))
+                sys.stderr.write('\r{} molecules screened {}\n'.format(i, current_time))
                 sys.stderr.flush()
         p.close()
     return screen_output
